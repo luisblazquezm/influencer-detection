@@ -6,15 +6,27 @@
 import tweepy
 import requests
 import re
-
-from soa import config
-from tweepy import OAuthHandler
+import json
 import datetime
+import logging
+import time
+
+from influencers import config
+from tweepy import OAuthHandler
 from typing import List, Dict, Any
+
+"""logging.basicConfig(format='%(asctime)s %(filename)s, line %(lineno)s - %(name)s.%(funcName)s() - '
+                           '%(levelname)s - %(message)s ', level=logging.DEBUG)"""
+
+logging.basicConfig(format='%(asctime)s %(filename)s, %(funcName)s() - '
+                           '%(message)s ', level=logging.DEBUG)
 
 class TwitterExtraction:
 
     def __init__(self):
+
+        # Debug logger
+        self._logger = logging.getLogger(self.__class__.__name__)
 
         # Create OAuthHandler object
         auth = tweepy.OAuthHandler(config.CONSUMER_KEY, config.CONSUMER_SECRET)
@@ -51,7 +63,7 @@ class TwitterExtraction:
         tweets = []
        
         # Call twitter api to fetch tweets
-        q=str(query)
+        q = str(query)
 
         try:
             # src: https://stackoverflow.com/questions/42384305/tweepy-cursor-multiple-or-logic-function-for-query-terms
@@ -59,7 +71,7 @@ class TwitterExtraction:
             for status in tweepy.Cursor(self._api.search,
                                         q=q,
                                         until=end_date,
-                                        result_type='recent',
+                                        #result_type='recent',
                                         include_entities=True,
                                         monitor_rate_limit=True, 
                                         wait_on_rate_limit=True,
@@ -67,20 +79,18 @@ class TwitterExtraction:
                                         tweet_mode='extended').items(count):
                 # Extract information
                 tweet_object = {}
-                tweet_object['text'] = self.extract_text(status)
-                tweet_object['url'] = self.extract_url(status)
-                tweet_object['date'] = self.extract_date_of_creation(status)
-                tweet_object['geolocation'] = self.extract_geolocation(status)
-                tweet_object['coordinates'] = self.extract_coordinates(status)
+                tweet_object['text'] = self.__extract_text(status)
+                tweet_object['url'] = self.__extract_url(status)
+                tweet_object['date'] = self.__extract_date_of_creation(status)
+                tweet_object['user'] = self.__extract_user(status)
                 tweets.append(tweet_object)
 
         except tweepy.TweepError as e:
-            # if tweepy encounters an error, sleep for fifteen minutes..this will
+            # if tweepy encounters an error, time.sleep for fifteen minutes..this will
             # help against API bans.
-            print("Whoops! Something went wrong here. \
-                    The error code is " + str(e))
-            sleep(60 * 15)
-            return []
+            self._logger.error(f"Something happened extracting tweets: {e}")
+            time.sleep(60 * 5)
+            return tweets
 
         return tweets
 
@@ -167,9 +177,9 @@ class TwitterExtraction:
         try:
             response = requests.get(uri, headers=bearer_header)
         except Exception as e:
-            print("Whoops! Something went wrong here. \
-                    The error code is " + str(e))
-            return
+            self._logger.error(f"Something happened extracting tweets with bearer token: {e}")
+            time.sleep(60 * 5)
+            return []
 
         # Extract information
         if response.status_code == requests.codes.ok:
@@ -177,16 +187,14 @@ class TwitterExtraction:
             # Extract information
             for status in response.json()['statuses']:
                 tweet_object = {}
-                tweet_object['text'] = self.extract_text(status)
-                tweet_object['url'] = self.extract_url(status)
-                tweet_object['date'] = self.extract_date_of_creation(status)
-                tweet_object['geolocation'] = self.extract_geolocation(status)
-                tweet_object['coordinates'] = self.extract_coordinates(status)
+                tweet_object['text'] = self.__extract_text(status)
+                tweet_object['url'] = self.__extract_url(status)
+                tweet_object['date'] = self.__extract_date_of_creation(status)
                 tweets.append(tweet_object)
         else:
-            print("Whoops! Something went wrong here. \
-                    The error code is " + str(e))
-            return
+            self._logger.error(f"Something happened extracting tweets (Bearer Token): {e}")
+            time.sleep(60 * 5)
+            return tweets
 
         return tweets
 
@@ -236,7 +244,115 @@ class TwitterExtraction:
                                                  start_date = start_date,
                                                  end_date = end_date)
 
-    def extract_text(self, obj: dict, clean_text: bool = False) -> str:
+
+    def get_user_followers_single_query(self, 
+                                        user_id: str, 
+                                        count: int = config.DEFAULT_NUM_FOLLOWERS_EXTRACTED,
+                                        lang: str = config.DEFAULT_TWEETS_LANGUAGE,
+                                        start_date: str = (datetime.datetime.now() - datetime.timedelta(days=365)).strftime('%Y-%m-%d'),
+                                        end_date: str = datetime.date.today().strftime('%Y-%m-%d')) -> List[Dict]:
+
+        # Empty list to store parsed tweets
+        followers = []
+
+        try:
+            # src: https://stackoverflow.com/questions/42384305/tweepy-cursor-multiple-or-logic-function-for-query-terms
+            # src: https://stackoverflow.com/questions/53161459/how-to-get-the-full-text-of-a-tweet-using-tweepy            
+            for user in tweepy.Cursor(self._api.followers, 
+                                      user_id=user_id,
+                                      count=config.NUM_FOLLOWERS_TO_EXTRACT_WITH_RATE_LIMIT).items(config.NUM_FOLLOWERS_TO_EXTRACT_WITH_RATE_LIMIT):
+
+                # Extract information
+                follower_object = {}
+                follower_object['name'] = self.__extract_profile_name(user)
+                follower_object['screen_name'] = self.__extract_profile_screen_name(user)
+                follower_object['id_str'] = self.__extract_profile_id_str(user)
+                follower_object['listed_count'] = self.__extract_profile_listed_count(user)
+                follower_object['biography'] = self.__extract_profile_description(user)
+                follower_object['description'] = self.__extract_profile_description(user)
+                follower_object['num_tweets_published'] = self.__extract_profile_num_tweets_published(user)
+                follower_object['verified'] = self.__extract_profile_verified(user)
+                follower_object['num_followers'] = self.__extract_profile_num_followers(user)
+                follower_object['num_followees'] = self.__extract_profile_num_followees(user)
+                follower_object['date_of_creation'] = self.__extract_profile_date_of_creation(user)
+
+                followers.append(follower_object)
+
+        except tweepy.TweepError as e:
+            # if tweepy encounters an error, time.sleep for fifteen minutes..this will
+            # help against API bans.
+            self._logger.error(f"Something happened extracting tweets: {e}")
+            time.sleep(60 * 5)
+            return followers
+
+        return followers
+
+        
+
+
+    def get_user_timeline_tweets_single_query(self, 
+                                              user_id : str, 
+                                              count: int = config.DEFAULT_NUM_TIMELINE_TWEETS_EXTRACTED,
+                                              lang: str = config.DEFAULT_TWEETS_LANGUAGE,
+                                              start_date: str = (datetime.datetime.now() - datetime.timedelta(days=365)).strftime('%Y-%m-%d'),
+                                              end_date: str = datetime.date.today().strftime('%Y-%m-%d'),
+                                              include_retweets: bool = False) -> List[Dict]:
+        """Retrieve tweets containing a keyword given in a query
+        
+        Arguments:
+            query (:obj:`str`): keyword to find in tweets
+        
+        Keyword Arguments:
+            count (:obj:`int`, optional): number of tweets to retrieve (default: {DEFAULT_NUM_TWEETS_EXTRACTED})
+            lang (:obj:`str`, optional): language ot the tweets (default: {DEFAULT_TWEETS_LANGUAGE})
+            start_date (:obj:`str`, optional): beginning date point to retrieve tweets (default: {datetime.date.today().strftime('%Y-%m-%d')})
+            end_date (:obj:`str`, optional): end date point to retrieve tweets (default: {datetime.date.today().strftime('%Y-%m-%d')})
+        
+        Returns:
+            :obj:`list` of :obj:`dict`: list of dictionaries containing information about the tweets retrieved
+        """
+
+        # Empty list to store parsed tweets
+        tweets = []
+    
+        try:
+            for status in tweepy.Cursor(self._api.user_timeline,
+                                        include_rts=include_retweets,
+                                        count=count, 
+                                        trim_user=True,
+                                        user_id=user_id ,
+                                        tweet_mode="extended").items(count):
+                # Extract information
+                tweet_object = {}
+                tweet_object['text'] = self.__extract_text(status)
+                tweet_object['url'] = self.__extract_url(status)
+                tweet_object['date'] = self.__extract_date_of_creation(status)
+                tweets.append(tweet_object)
+
+        except tweepy.TweepError as e:
+            # if tweepy encounters an error, time.sleep for fifteen minutes..this will
+            # help against API bans.
+            self._logger.error(f"Something happened extracting tweets from timeline: {e}")
+            time.sleep(60 * 5)
+            return tweets
+
+        return tweets
+
+    def get_user_timeline_tweets_multiple_query(self, 
+                                                users: List[Dict], 
+                                                count: int = config.DEFAULT_NUM_TWEETS_EXTRACTED,
+                                                lang: str = config.DEFAULT_TWEETS_LANGUAGE,
+                                                start_date: str = (datetime.datetime.now() - datetime.timedelta(days=365)).strftime('%Y-%m-%d'),
+                                                end_date: str = datetime.date.today().strftime('%Y-%m-%d')) -> List[Dict]:
+
+        return list(map(lambda user:self.get_user_timeline_tweets_single_query(self, 
+                                                                               user_screen_name=user, 
+                                                                               count=count,
+                                                                               lang=lang,
+                                                                               start_date=start_date,
+                                                                               end_date=start_date), users))
+
+    def __extract_text(self, obj: dict, clean_text: bool = False) -> str:
         """Extracts text from tweet object status
         
         Arguments:
@@ -253,7 +369,7 @@ class TwitterExtraction:
             text = re.sub("[^A-Za-z]", "", text) # Clean tweet
         return text
 
-    def extract_url(self, obj: dict) -> str:
+    def __extract_url(self, obj: dict) -> str:
         """Extracts text from tweet object status
         
         Arguments:
@@ -265,7 +381,7 @@ class TwitterExtraction:
         url = "https://twitter.com/twitter/statuses/" + str(obj.id)
         return url
 
-    def extract_date_of_creation(self, obj: dict) -> str:
+    def __extract_date_of_creation(self, obj: dict) -> str:
         """Extracts date and time from tweet object status
         
         Arguments:
@@ -276,7 +392,7 @@ class TwitterExtraction:
         """
         return obj.created_at.strftime('%Y-%m-%dT%H:%M:%S')
 
-    def extract_geolocation(self, obj: dict) -> str:
+    def __extract_user(self, obj: dict) -> dict:
         """Extracts country and city information from tweet object status
         
         Arguments:
@@ -285,15 +401,125 @@ class TwitterExtraction:
         Returns:
             :obj:`str`: tweet´s location
         """
-        return obj.geo
+        new_obj = obj.user._json
 
-    def extract_coordinates(self, obj: dict) -> str:
-        """Extracts location coordinates from tweet object status
+        # Get image
+        if (obj.user.profile_image_url):
+            new_obj['profile_image_url'] = obj.user.profile_image_url
+        elif (obj.user.profile_image_url_https):
+            new_obj['profile_image_url'] = obj.user.profile_image_url_https
+        else:
+            new_obj['profile_image_url'] = config.DEFAULT_TWITTER_PROFILE_PICTURE
+
+        return new_obj
+
+    def __extract_profile_name(self, obj: dict) -> str:
+        """
         
         Arguments:
             obj (:obj:`dict`): status with information about a tweet from Twitter API
         
         Returns:
-            :obj:`str`: tweet´s coordinates in (lat - long) format
+            :obj:`str`: 
         """
-        return obj.coordinates
+        return obj.name
+
+    def __extract_profile_id_str(self, obj: dict) -> str:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.id_str
+
+
+    def __extract_profile_screen_name(self, obj: dict) -> str:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.screen_name
+
+    def __extract_profile_description(self, obj: dict) -> str:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.description
+
+    def __extract_profile_listed_count(self, obj: dict) -> int:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.listed_count
+
+    def __extract_profile_num_tweets_published(self, obj: dict) -> int:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.statuses_count
+
+    def __extract_profile_verified(self, obj: dict) -> bool:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.verified
+
+    def __extract_profile_num_followers(self, obj: dict) -> str:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.followers_count
+
+    def __extract_profile_num_followees(self, obj: dict) -> str:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.friends_count
+
+    def __extract_profile_date_of_creation(self, obj: dict) -> str:
+        """
+        
+        Arguments:
+            obj (:obj:`dict`): status with information about a tweet from Twitter API
+        
+        Returns:
+            :obj:`str`: 
+        """
+        return obj.created_at

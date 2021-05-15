@@ -8,11 +8,13 @@ import os
 # api config
 PORT = 5000
 HOST = '0.0.0.0'
-URL_PREFIX = '/soa/v1'
+URL_PREFIX = '/influencers/v1'
 DEBUG_MODE = True
 USE_HTTPS = not DEBUG_MODE
 SSL_KEY = './certs/server.key'
 SSL_CERT = './certs/server.crt'
+
+DEFAULT_NUM_TOP_INFLUENCERS = 5
 
 # barcelona ckan token
 BARCELONA_CKAN_TOKEN = "12552198a8992ac3b2129ebc803e29ac50515f383dfdc147abf39dd127050db1"
@@ -28,29 +30,17 @@ BEARER_TOKEN = "AAAAAAAAAAAAAAAAAAAAAHwMDwEAAAAAj5283nyjyrK%2BXzu5F01p%2Fx0b104%
 SEARCH_TWEETS_URI = 'https://api.twitter.com/1.1/search/tweets.json'
 
 DEFAULT_NUM_TWEETS_EXTRACTED = 300
+DEFAULT_NUM_FOLLOWERS_EXTRACTED = 100
+DEFAULT_NUM_TIMELINE_TWEETS_EXTRACTED = 300
+NUM_FOLLOWERS_TO_EXTRACT_WITH_RATE_LIMIT = 10
+DEFAULT_TWITTER_PROFILE_PICTURE = 'https://cms.qz.com/wp-content/uploads/2017/03/twitter_egg_blue.png?quality=75&strip=all&w=1600&h=900&crop=1'
 DEFAULT_TWEETS_LANGUAGE = 'en'
 
-# location api config
-LOCATIONIQ_TOKEN = "pk.3086d0188b2fa4e26bcec2436d145356"
-MAPBOX_TOKEN = "pk.eyJ1IjoibWlndWVsY2FiZXphc3B1ZXJ0byIsImEiOiJja2g5NG80Nm4wcXVpMnducWZyeDh5Y2xrIn0.X-9lAGXU4ZBiNr_1uj8udQ"
+BOT_PERCENTAGE_MEDIUM_RISK = 20
+BOT_PERCENTAGE_HIGH_RISK = 40
+BAG_OF_WORDS_BOT_DETECTION = r'bot|b0t|cannabis|tweet me|mishear|follow me|updates every|gorilla|yes_ofc|forget|expos|kill|clit|bbb|butt|fuck|XXX|sex|truthe|fake|anony|free|virus|funky|RNA|kuck|jargon|nerd|swag|jack|bang|bonsai|chick|prison|paper|pokem|xx|freak|ffd|dunia|clone|genie|bbbffd|onlyman|emoji|joke|troll|droop|free|every|wow|cheese|yeah|bio|magic|wizard|face'
+BOT_DETECTOR_MODEL_FILENAME = "../ia_models/bot_detection_model.pickle"
 
-#news api config
-NEWSAPI_TOKEN = "5d428c4a155f4c00b4c045fe069ff824"
-DEFAULT_NEWS_COUNTRY = 'gb'
-ENDPOINT_RECENT_HEADLINES = "http://newsapi.org/v2/top-headlines?country={code}&category={query}&apiKey={api_key}"
-ENDPOINT_NEWS_EVERYTHING = "http://newsapi.org/v2/everything?{query}&from={from_date}&to={to_date}8&sortBy=popularity&apiKey={api_key}"
-LIST_OF_COUNTRY_CODES = ["ae", "ar", "at", "au", "be", "bg", "br", "ca", "ch",
-						"cn", "co", "cu", "cz", "de", "eg", "fr", "gb", "gr",
-						"hk", "hu", "id", "ie", "il", "in", "it", "jp", "kr",
-						"lt", "lv", "ma", "mx", "my", "ng", "nl", "no", "nz",
-						"ph", "pl", "pt", "ro", "rs", "ru", "sa", "se", "sg",
-						"si", "sk", "th", "tr", "tw", "ua", "us", "ve", "za"]
-DEFAULT_NEWS_LANGUAGE = 'en'
-LIST_OF_LANGUAGE_CODES = ["ar", "de", "en", "es", "fr", "he", "it",
-						"nl", "no", "pt", "ru", "se", "ud", "zh"]
-DEFAULT_NUM_NEWS_EXTRACTED = 30
-REQUEST_MIN_TIME_WAIT = 3
-REQUEST_MAX_TIME_WAIT = 8
 USER_AGENT_LIST = [
     "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2227.1 Safari/537.36",

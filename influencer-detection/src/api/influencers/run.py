@@ -8,10 +8,10 @@ from flask_cors import CORS
 from flask_talisman import Talisman
 from flask import Flask, Blueprint, redirect, request
 
-from soa import config
-from soa.api.v1 import api
-from soa.core import cache, limiter
-from soa.api.influencer_ns import influencer_ns
+from influencers import config
+from influencers.api.v1 import api
+from influencers.core import cache, limiter
+from influencers.api.influencers_ns import influencer_ns
 
 app = Flask(__name__)
 
@@ -91,7 +91,7 @@ def main():
         Talisman(app, force_https=True)
         context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
         context.load_cert_chain(config.SSL_CERT, config.SSL_KEY)   
-        app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG_MODE, ssl_context=context)
+        app.run(host=config.HOST, port=config.PORT, debug=config.DEBUG_MODE)
 
 
 if __name__ == '__main__':

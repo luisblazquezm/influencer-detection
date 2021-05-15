@@ -4,9 +4,17 @@
 # See LICENSE for details.
 
 import re
+import logging    
 
+from influencers import config
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from typing import Dict
+
+"""logging.basicConfig(format='%(asctime)s %(filename)s, line %(lineno)s - %(name)s.%(funcName)s() - '
+                           '%(levelname)s - %(message)s ', level=logging.DEBUG)"""
+
+logging.basicConfig(format='%(asctime)s %(filename)s, %(funcName)s() - '
+                           '%(message)s ', level=logging.DEBUG)
 
 class SentimentAnalyzer:
 

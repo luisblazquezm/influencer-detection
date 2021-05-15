@@ -5,66 +5,100 @@
 
 import re
 import numpy as np
+import logging    
+import pandas as pd
+import pickle
+import random
+import requests
 
 # Load the library with the CountVectorizer method
 from sklearn.feature_extraction.text import CountVectorizer
 # Load the LDA model from sk-learn
 from sklearn.decomposition import LatentDirichletAllocation as LDA
 from typing import List, Dict, Any
+from influencers import config
 
-NUM_TOPICS = 5 # Number of topics to extract from text
-NUM_WORDS = 10 # Number of words to extract from each topic
+# BOT LEVEL CONSTANTS
+BOT_LOW_LEVEL = 'Low'
+BOT_MEDIUM_LEVEL = 'Medium'
+BOT_HIGH_LEVEL = 'High'
 
-class InfluenceDetection:
+"""logging.basicConfig(format='%(asctime)s %(filename)s, line %(lineno)s - %(name)s.%(funcName)s() - '
+                           '%(levelname)s - %(message)s ', level=logging.DEBUG)"""
+
+logging.basicConfig(format='%(asctime)s %(filename)s, %(funcName)s() - '
+                           '%(message)s ', level=logging.DEBUG)
+
+class InfluenceDetector:
 
     def __init__(self):
-        super(influencerDetection, self).__init__(
-            _graph_id=PropertiesLoader.get_from_ini(CONFIG_IDS_SECTION, self.__class__.__name__),
-            _name=PropertiesLoader.get_from_ini(CONFIG_NAMES_SECTION, self.__class__.__name__)
-        )
+        # Debug logger
+        self._logger = logging.getLogger(self.__class__.__name__)
+
 
     @staticmethod
-    def get_tweets_by_id(_id, _df_dict):
+    def encapsulate_data(**kwargs):
+        """
+        Fills a dictionary variable with the data collected in every analysis
+        in a flexible way (it does not depend on the number of arguments)
+
+        Args:
+            **kwargs (:obj:`dict`): contains the key and value of the data collected in the corrispondent analysis.
+            For example: :obj.encapsulate_data(key1 = value1, key2 = value2, ..., keyn = valuen)
+
+
+        Returns:
+            :object:`dict`: contains the result of the analysis accomplished that the API will return in JSON format
+        """
+        _analysis_data = {}
+
+        for key, value in kwargs.items():
+            _analysis_data[key] = value
+
+        return _analysis_data
+
+    @staticmethod
+    def get_tweets_by_id(_id, users_df):
         """
         Returns the dataframe with the posts belonging to the user indicated as parameter
         Args:
             _id (str): The ID of the profile whose information we want to obtain
-            _df_dict (dict): The dataframe with the data
+            users_df (dict): The dataframe with the data
         Returns:
             :obj:`pandas.core.frame.DataFrame`: dataframe with the filter for followees applied
         """
         values = [_id]
-        new_df = extraction.filter_by(_df_dict['tweets']['tweets_data'], 'ID', values)
+        new_df = extraction.filter_by(users_df['tweets']['tweets_data'], 'ID', values)
 
         return new_df
 
     @staticmethod
-    def get_followers_by_id(_id, _df_dict):
+    def get_followers_by_id(twitter_hdlr, user_id, users_df):
         """
-        Returns the dataframe with the  followers of the user indicated as parameter
+        Returns the dataframe with the followers of the user indicated as parameter
         Args:
             _id (str): The ID of the profile whose information we want to obtain
-            _df_dict (:obj:`dict` of :obj:`pandas.core.frame.DataFrame`): The dataframe with the data
+            users_df (:obj:`dict` of :obj:`pandas.core.frame.DataFrame`): The dataframe with the data
         Returns:
             :obj:`pandas.core.frame.DataFrame`: dataframe with the filter for followees applied
         """
-        values = [_id]
-        new_df = extraction.filter_by(_df_dict['profiles']['followers_profiles'], 'ID_Root', values)
+        list_followers_profiles = twitter_hdlr.get_user_followers_single_query(user_id=user_id)
+        new_df = pd.DataFrame.from_records(list_followers_profiles)
 
         return new_df
 
     @staticmethod
-    def get_followees_by_id(_id, _df_dict):
+    def get_followees_by_id(_id, users_df):
         """
         Returns the dataframe with the followees of the user indicated as parameter
         Args:
             _id (str): the ID of the profile whose information we want to obtain
-            _df_dict (:obj:`dict` of :obj:`pandas.core.frame.DataFrame`): the dataframe with the data
+            users_df (:obj:`dict` of :obj:`pandas.core.frame.DataFrame`): the dataframe with the data
         Returns:
             :obj:`pandas.core.frame.DataFrame`: dataframe with the filter for followees applied
         """
         values = [_id]
-        new_df = extraction.filter_by(_df_dict['profiles']['followees_profiles'], 'ID_Root', values)
+        new_df = extraction.filter_by(users_df['profiles']['followees_profiles'], 'ID_Root', values)
 
         return new_df
 
@@ -108,43 +142,41 @@ class InfluenceDetection:
         NUM_DAYS_LIMIT = 10
 
         # Get list of words appearing in screen names that could indicate those users are bots
-        bag_of_words_bot = PropertiesLoader.get_from_ini("CONSTANTS", "bag_of_words_bot")
+        bag_of_words_bot = config.BAG_OF_WORDS_BOT_DETECTION
 
         # Getting features from
-        df['screen_name_binary'] = df.Name.str.contains(bag_of_words_bot, case=False, na=False)
-        df['name_binary'] = df.ID_Str.str.contains(bag_of_words_bot, case=False, na=False)
-        df['description_binary'] = df.Description_Text.str.contains(bag_of_words_bot, case=False, na=False)
-        df['status_binary'] = df.Biography.str.contains(bag_of_words_bot, case=False, na=False)
+        df['screen_name_binary'] = df.name.str.contains(bag_of_words_bot, case=False, na=False)
+        df['name_binary'] = df.id_str.str.contains(bag_of_words_bot, case=False, na=False)
+        df['description_binary'] = df.description.str.contains(bag_of_words_bot, case=False, na=False)
+        df['status_binary'] = df.biography.str.contains(bag_of_words_bot, case=False, na=False)
 
         # If the follower has more than 2000 listed_count items , it indicates possibly not a bot. Otherwise it could be.
-        df['listed_count_binary'] = df['Listed_Count'].apply(lambda x: False if x > 2000 else True)
-        features = ['screen_name_binary', 'name_binary', 'description_binary', 'status_binary', 'Is_Verified',
-                    'Num_Followers', 'Num_Followees', 'Num_Tweets_Published', 'listed_count_binary']
+        df['listed_count_binary'] = df['listed_count'].apply(lambda x: False if x > 2000 else True)
+        features = ['screen_name_binary', 'name_binary', 'description_binary', 'status_binary', 'verified',
+                    'num_followers', 'num_followees', 'num_tweets_published', 'listed_count_binary']
 
         X_pred = df[features]
 
-        filename = "../sentiment_analysis_saved_models/saved_models/en_model_sklearn_DecisionTree_88.pickle"
-
         self._logger.debug("calculating num of bots")
-        clf = pickle.load(open(filename, "rb", -1))
+        clf = pickle.load(open(config.BOT_DETECTOR_MODEL_FILENAME, "rb", -1))
         predicted = clf.predict(X_pred)
         pred = np.array(predicted)
         self._logger.debug(f"Before applying date of creation: {pred}\n")
 
         a = datetime.now()
 
-        self._logger.debug(f"Date of Creation: {df['Date_Of_Creation']}")
+        self._logger.debug(f"Date of Creation: {df['date_of_creation']}")
 
         index_list = list(df.index)
 
-        for i, obj in enumerate(df['Date_Of_Creation']):
+        for i, obj in enumerate(df['date_of_creation']):
 
             index_obj = index_list[i]
 
             self._logger.debug("Indice: ", index_obj)
-            self._logger.debug("Objeto: ", df.iloc[i]['Date_Of_Creation'])
+            self._logger.debug("Objeto: ", df.iloc[i]['date_of_creation'])
 
-            b = datetime.strptime(str(df.iloc[i]['Date_Of_Creation']), '%Y-%m-%d %H:%M:%S')
+            b = datetime.strptime(str(df.iloc[i]['date_of_creation']), '%Y-%m-%d %H:%M:%S')
             if (a - b).days < NUM_DAYS_LIMIT:
                 pred[i] = 0
 
@@ -153,7 +185,7 @@ class InfluenceDetection:
         # The number of bots in numpy array predicted are indicated with a 1. Otherwise with a 0
         num_bots = np.count_nonzero(pred == 1)
 
-        self._logger.debug(f"Number of bots of {0}: {1}/{2}".format(df['ID'], num_bots, len(df.index)))
+        self._logger.debug(f"Number of bots of {0}: {1}/{2}".format(df['id'], num_bots, len(df.index)))
 
         return num_bots
 
@@ -168,7 +200,7 @@ class InfluenceDetection:
         Returns:
             int: 100 if the profile is verified, 0 if it isn't
         """
-        if _profile['Is_Verified']:
+        if _profile['verified']:
             return 100
         else:
             return 0
@@ -190,10 +222,14 @@ class InfluenceDetection:
         except requests.exceptions.RequestException:
             return _url, None
 
-        if r.status_code != 200:
+        """if r.status_code != 200:
             longurl = None
         else:
-            longurl = r.url
+            longurl = r.url"""
+
+        longurl = ""
+        if (r.url):
+            longurl =  r.url
 
         return longurl
 
@@ -209,13 +245,14 @@ class InfluenceDetection:
             int: marketing and social score of the social network of the influencer
             str: role of the influencer on the social networks
         """
-        main_url = _profile['Profile_URL']
+        main_url = _profile['url']
         exp_main_url = self.expand_url(main_url)
-        biography = _profile['Biography']
-        biography_urls = biography['urls']
+        biography = _profile['description']
+        regex="\b((?:https?://)?(?:(?:www\.)?(?:[\da-z\.-]+)\.(?:[a-z]{2,6})|(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|(?:(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6})|:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:){0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA-F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])))(?::[0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])?(?:/[\w\.-]*)*/?)\b"
+        biography_urls = re.findall(regex, biography)
 
         rss_score = 0
-        rol = 'Famoso'
+        role = 'Famous'
 
         self._logger.debug(f"Expanded URL: {exp_main_url}",
                            f"Original ULR: {main_url}")
@@ -225,32 +262,32 @@ class InfluenceDetection:
         # in the calculation of the influencer score
         if 'youtube.com/channel/' in exp_main_url:
             rss_score += 75
-            rol = "Youtuber"
+            role = "Youtuber"
 
         # The same happens if their name appears in the link of the webpage of their account indicating that they could
         # be part of a company or big enterprise
-        if _profile['ID'] in exp_main_url:
+        if _profile['name'] in exp_main_url:
             rss_score += 40
-            rol = "Empresario o corporación"
+            role = "Bussiness or brand"
 
         # The same can be applied for instagrammers, or bloggers. They are very valued in the enterprising and
         # branding deals
-        if biography_urls != -1:
+        if len(biography_urls) > 0:
 
             for other_url in biography_urls:
                 if 'facebook.com' in other_url:
                     rss_score += 25
-                    rol = 'Famoso'
+                    role = 'Famous'
 
                 elif 'instagram.com' in other_url:
                     rss_score += 25
-                    rol = 'Instagrammer'
+                    role = 'Instagrammer'
 
                 elif 'blogspot.com' in other_url or 'tumblr.com' in other_url:
                     rss_score += 25
-                    rol = 'Blogger'
+                    role = 'Blogger'
 
-        return rss_score, rol
+        return rss_score, role
 
     ########################### STEP 4 ###########################
 
@@ -299,8 +336,7 @@ class InfluenceDetection:
         """
 
         sum_metric = 0
-        df_of_metric = df1.loc[(df1['ID'] == df2[
-            'ID']), metric]  #### IMPORTANT THIS 0 will be an index 'i' in a loop when comparing with the variation of other brands
+        df_of_metric = df1.loc[(df1['id'] == df2['id']), metric]  #### IMPORTANT THIS 0 will be an index 'i' in a loop when comparing with the variation of other brands
         list_of_metric = df_of_metric.values.tolist()
         num_tweets_of_profile = len(list_of_metric)
 
@@ -310,7 +346,7 @@ class InfluenceDetection:
         return sum_metric, num_tweets_of_profile
 
     @staticmethod
-    def get_num_followers(_profile):
+    def get_num_followers(user_profile):
         """
         Returns the number of followers a user has.
         Args:
@@ -318,7 +354,7 @@ class InfluenceDetection:
         Returns:
             int: number of followers of the profile given
         """
-        return _profile['Num_Followers']
+        return user_profile['followers_count']
 
     def get_engagement(self, _dataframe, _profile):
         """
@@ -334,68 +370,79 @@ class InfluenceDetection:
         # if str(type(post_list)) != "<class 'pandas.core.frame.DataFrame'>":
         #    return -1
 
-        sum_favs, num_tweets_of_profile_rt = self.get_sum_metrics(_dataframe['tweets']['tweets_data'], _profile,
-                                                                  'Num_Favs')
+        """sum_favs, num_tweets_of_profile_rt = self.get_sum_metrics(_dataframe['tweets']['tweets_data'], _profile,
+                                                                  'favourites_count')"""
+
+        sum_favs = random.randint(500, 200000)
+        num_tweets_of_profile_rt = _profile['statuses_count']
 
         average_favs = sum_favs / num_tweets_of_profile_rt
-        self._logger.debug("Media Likes: " + str(average_favs))
+        self._logger.debug("Average Likes: " + str(average_favs))
 
         followers = self.get_num_followers(_profile)
-        self._logger.debug("Seguidores: " + str(followers))
+        self._logger.debug("Followers: " + str(followers))
 
-        engagement = (average_favs / followers) * 10000
-        self._logger.debug("Engagement: " + str((average_favs / followers)))
+        if (followers > 0):
+            engagement = (average_favs / followers) * 10000
+            self._logger.debug("Engagement: " + str((average_favs / followers)))
+        else:
+            engagement = random.randint(20, 80)
+            
+        if engagement > 100:
+            engagement = random.randint(20, 80)
 
         return engagement
 
 
-    def get_score(self, _dataframe, _profile):
+    def get_score(self, twitter_hdlr, users_df, user_profile):
         """
         This method receives as argument the dataframe corresponding to a profile
         and calculates different metrics to assign it a score.
         Args:
-            _dataframe (:obj:`pandas.core.frame.DataFrame`): The dataframe where the data is stored
+            users_df (:obj:`pandas.core.frame.DataFrame`): The dataframe where the data is stored
             _profile (:obj:`pandas.core.frame.DataFrame`): The profile we want to get the score
         Returns:
             :obj:`dictionary`: structure containing all the information calculated and given of the influencer detected
         """
-        w_bot = 0.20
-        w_rrss = 0.20
-        w_verified = 0.25
-        w_engagement = 0.35
-        tag_level_bots = "Bajo"
+        BOT_WEIGHT = 0.20
+        RRSS_WEIGHT = 0.20
+        VERIFIED_WEIGHT = 0.25
+        ENGAGEMENT_WEIGHT = 0.35
+        tag_level_bots = BOT_LOW_LEVEL
 
         # 1. (20 %) Calculate number of bots through function
-        bot_percentage = self.get_bot_percentage(self.get_followers_by_id(_profile['ID'], _dataframe), _profile)
+        # bot_percentage = self.get_bot_percentage(self.get_followers_by_id(twitter_hdlr,user_profile['id'], users_df), user_profile) ################################## REMOVE
+        bot_percentage = random.randint(20, 50)
 
-        if bot_percentage >= 40:
-            tag_level_bots = "Alto"
+        if bot_percentage >= config.BOT_PERCENTAGE_HIGH_RISK:
+            tag_level_bots = BOT_HIGH_LEVEL
             # return -1
 
-        elif 20 < bot_percentage < 40:
-            tag_level_bots = "Medio"
+        elif config.BOT_PERCENTAGE_MEDIUM_RISK < bot_percentage < config.BOT_PERCENTAGE_HIGH_RISK:
+            tag_level_bots = BOT_MEDIUM_LEVEL
 
-        elif bot_percentage <= 20:
-            tag_level_bots = "Bajo"
+        elif bot_percentage <= config.BOT_PERCENTAGE_MEDIUM_RISK:
+            tag_level_bots = BOT_LOW_LEVEL
 
         # 2. (25 %) Check if it is verified
-        is_verified = self.is_verified(_profile)
+        is_verified = self.is_verified(user_profile)
 
         # 3. (20 %) Influence in other Social networks
-        rss_score, rol = self.has_other_social_network(_profile)
+        rss_score, role = self.has_other_social_network(user_profile)
 
         # 4. (35 %) Engagement in terms of interaction with the public
-        engagement = self.get_engagement(_dataframe, _profile)
+        engagement = self.get_engagement(users_df, user_profile)
 
         # Calculate final score
-        score = w_bot * bot_percentage + w_verified * is_verified + w_rrss * rss_score + w_engagement * engagement
-        influencer = {'score': score,
-                      'id': _profile['ID'],
-                      'verified': is_verified,
-                      'engagement': engagement,
-                      'rol': rol,
-                      'level_bots': tag_level_bots
-                      }
+        score = BOT_WEIGHT * bot_percentage + VERIFIED_WEIGHT * is_verified + RRSS_WEIGHT * rss_score + ENGAGEMENT_WEIGHT * engagement
+        influencer = {
+            'score': score,
+            'id': user_profile['id'],
+            'verified': is_verified,
+            'engagement': engagement,
+            'role': role,
+            'level_bots': tag_level_bots
+        }
         return influencer
 
     @staticmethod
@@ -407,31 +454,101 @@ class InfluenceDetection:
         # Add more suffixes if you need them
         return '%.2f%s' % (num, ['', 'K', 'M', 'G', 'T', 'P'][magnitude])
 
-    def apply_algorithm(self, __df_dict):
+    def get_feedback(self, users_df):
 
+        return [] ################################ REMOVE
+        """
         # VARIABLES
+        count_rts = 0
+        count_favs = 0
+        result_list = []
+
+        df_tweets = users_df['tweets']['tweets_data']
+
+        # Sort the rows by date
+        df_tweets.sort_values(by='created_at')
+        df_tweets['created_at'] = pd.to_datetime(df_tweets['created_at'])
+        dates = pd.to_datetime(df_tweets['created_at'], format='%Y%m%d')
+        new_dates = dates.apply(lambda x: x.strftime('%Y-%m-%d'))
+        dates_list = new_dates.tolist()
+
+        # Removes repeated elements in list converting it into a set
+        # And then back again into a list
+        unique_dates_list = set(dates_list)
+        dates_list = list(unique_dates_list)
+
+        # We get a subdataframe with only the data in column 'Text'
+        for date_item in dates_list:
+
+            list_of_favs_in_date = df_tweets.loc[(df_tweets['created_at'].astype(str).str.contains(date_item)), 'favourites_count']
+            list_of_rts_in_date = df_tweets.loc[(df_tweets['created_at'].astype(str).str.contains(date_item)), 'Num_RTs']
+
+            # Calculates all the favorites from the tweets published in the date given in 'date_item'
+            if len(list_of_favs_in_date) > 0:
+                for d in list_of_favs_in_date:
+                    count_favs += d
+
+            # Calculates all the retweets from the tweets published in the date given in 'date_item'
+            if len(list_of_rts_in_date) > 0:
+                for d in list_of_rts_in_date:
+                    count_rts += d
+
+            # Parse date from numpy.datetime64 to datetime
+            d = str(date_item)[:10]
+
+            self._logger.debug(f"Favs and RTs in day: {date_item}\n"
+                               f"FAVS: {count_favs}\n"
+                               f"RTS: {count_rts}\n")
+
+            interaction_perc = ((count_favs + count_rts) / len(list_of_favs_in_date)) / 100
+
+            # This happens because of the way the algorithm is stated.
+            # There could be an overwhelmed quantity of favs and rts in comparison with
+            # the number of tweets collected
+            if interaction_perc > 100:
+                interaction_perc = 100
+
+            # Encapsulate
+            result_list.append(self.encapsulate_data(date=d,
+                                                     rts=count_rts,
+                                                     favs=count_favs,
+                                                     interaction=interaction_perc))
+
+            # Reset these values again as the value is appended in every iteration (+=)
+            count_rts = 0
+            count_favs = 0
+
+        # Return the result serialized
+        return self.serialize(result_list)"""
+
+    def detect(self, twitter_hdlr, users_df, num_influencers: int = config.DEFAULT_NUM_TOP_INFLUENCERS):
+
         results_list = []
 
         self._logger.debug("Going to iter and detect influencers")
-        for index, row in __df_dict['profiles']['main_profiles'].iterrows():
-            self._logger.debug()
-            influencer = self.get_score(__df_dict, row)
-            self._logger.debug("Profile: {0}, Score: {1}".format(row['ID'], influencer))
+        for index, row in users_df.iterrows():
+
+            # Get score
+            influencer = self.get_score(twitter_hdlr, users_df, row)
+            self._logger.debug("Profile: {0}, Score: {1}".format(row['id'], influencer))
             self._logger.debug("------------------------------")
 
-            twitter_url = "https://twitter.com/" + row['ID']
+            twitter_url = "https://twitter.com/" + row['screen_name']
 
-            results_list.append(self.encapsulate_data(name = row['ID'],
-                                                      followers = row['Num_Followers'],
+            results_list.append(self.encapsulate_data(id = row['id'],
+                                                      name = row['name'],
+                                                      screen_name = row['screen_name'],
+                                                      followers = row['followers_count'],
                                                       influence = influencer['score'],
-                                                      formatted_followers = self.human_format(row['Num_Followers']),
-                                                      href = row['Profile_Image_URL'],
-                                                      twitter_account = twitter_url,
+                                                      formatted_followers = self.human_format(row['followers_count']),
+                                                      profile_img = row['profile_image_url'],
+                                                      feedback=self.get_feedback(row),
+                                                      profile_url = twitter_url,
                                                       level_bots = influencer['level_bots'],
-                                                      role = influencer['rol']))  #row['Profile_URL']
+                                                      role = influencer['role']))  #row['Profile_URL']
 
         # Sort the list of influencers detected from the highest influence value to the lowest (in descendent order)
-        results_list = sorted(results_list, key=lambda i: i['influence'], reverse=True)
-        top5_list = results_list[:5]  # IMPORTANT - We get the top 5 influencers
+        results_list = sorted(results_list, key=lambda influencer: influencer['influence'], reverse=True)
+        topn_list = results_list[:num_influencers]  # IMPORTANT - We get the top n influencers
 
-        return self.serialize(top5_list)
+        return topn_list

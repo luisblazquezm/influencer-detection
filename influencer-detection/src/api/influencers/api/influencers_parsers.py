@@ -14,6 +14,13 @@ influencer_argument_parser.add_argument('q',
 										default=None,
 										help='The list of topics or themes to search tweets from. It must be a list of words separated by commas.')
 
+influencer_argument_parser.add_argument('num_top_influencers',
+										location='args',
+										type=int,
+										required=False,
+										default=None,
+										help='Top number of influencers to retrieve.')
+
 influencer_argument_parser.add_argument('count_tweets',
 										location='args',
 										type=int,

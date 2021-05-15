@@ -19,21 +19,21 @@ def read_requeriments_file(filename):
 
 
 setup(
-    name='SOA final project API',
+    name='Influencer Detector on Twitter',
     version='1.0',
     packages=find_packages(),
-    url='https://github.com/GandalFran/soa-final',
-    download_url='https://github.com/GandalFran/soa-final/archive/master.zip',
+    url='https://github.com/luisblazquezm/influencer-detection',
+    download_url='https://github.com/luisblazquezm/influencer-detection/archive/master.zip',
     license='GNU Affero General Public License v3',
-    author='Luis Blazquez Miñambres, Miguel Cabezas Puerto, Óscar Sánchez Juanes and Francisco Pinto-Santos',
-    author_email='luisblazquezm@usal.es, miguelcabezaspuerto@usal.es, oscar.sanchez@usal.es and franpintosantos@usal.es',
-    description='Flask RESTX API for SOA final project',
+    author='Luis Blazquez Miñambres',
+    author_email='luisblazquezm@usal.es',
+    description='Flask RESTX API for Influencer Detection on Twitter',
     long_description=readme(),
     long_description_content_type='text/markdown',
     install_requires=list(read_requeriments_file('requirements.txt')),
     entry_points={
         'console_scripts': [
-            'soa=soa.run:main'
+            'influencers=influencers.run:main'
         ],
     },
     include_package_data=True,
@@ -47,11 +47,11 @@ setup(
         "License :: OSI Approved :: GNU Affero General Public License v3",
         "Intended Audience :: Developers"
     ],
-    keywords='soa, flask, python',
+    keywords='twitter, influencer, flask, python',
     python_requires='>=3',
     project_urls={
-        'Bug Reports': 'https://github.com/GandalFran/soa-final/issues',
-        'Source': 'https://github.com/GandalFran/soa-final',
-        'Documentation': 'https://github.com/GandalFran/soa-final'
+        'Bug Reports': 'https://github.com/luisblazquezm/influencer-detection/issues',
+        'Source': 'https://github.com/luisblazquezm/influencer-detection',
+        'Documentation': 'https://github.com/luisblazquezm/influencer-detection'
     },
 )
