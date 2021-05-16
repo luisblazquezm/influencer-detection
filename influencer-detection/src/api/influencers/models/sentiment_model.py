@@ -13,8 +13,10 @@ from typing import Dict
 """logging.basicConfig(format='%(asctime)s %(filename)s, line %(lineno)s - %(name)s.%(funcName)s() - '
                            '%(levelname)s - %(message)s ', level=logging.DEBUG)"""
 
+
 logging.basicConfig(format='%(asctime)s %(filename)s, %(funcName)s() - '
                            '%(message)s ', level=logging.DEBUG)
+
 
 class SentimentAnalyzer:
 
@@ -117,10 +119,10 @@ class SentimentAnalyzer:
       
         # decide sentiment as positive, negative and neutral 
         if score_dict['compound'] >= 0.05 : 
-            sentiment_result = "positive"
+            sentiment_result = "Positive"
         elif score_dict['compound'] <= - 0.05 : 
-            sentiment_result = "negative"
+            sentiment_result = "Negative"
         else: 
-            sentiment_result = "neutral"
+            sentiment_result = "Neutral"
 
         return {"sentiment": sentiment_result}

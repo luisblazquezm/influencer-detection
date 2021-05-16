@@ -9,6 +9,7 @@ import logging
 import pandas as pd
 import pickle
 import random
+import time
 import requests
 
 # Load the library with the CountVectorizer method
@@ -320,7 +321,7 @@ class InfluenceDetector:
         return _profile_tweets.reset_index(drop=True).loc[new_from:new_to]
 
     @staticmethod
-    def get_sum_metrics(df1, df2, metric):
+    def get_sum_metrics(df, metric):
         """
         Returns the adding of the number of metrics given (rt, fav or other) in the tweets in dataframe df2 - ['tweets_profiles']
         of the profile´s account given in dataframe df1 - ['main_profiles'].
@@ -336,7 +337,7 @@ class InfluenceDetector:
         """
 
         sum_metric = 0
-        df_of_metric = df1.loc[(df1['id'] == df2['id']), metric]  #### IMPORTANT THIS 0 will be an index 'i' in a loop when comparing with the variation of other brands
+        df_of_metric = df[metric]  #### IMPORTANT THIS 0 will be an index 'i' in a loop when comparing with the variation of other brands
         list_of_metric = df_of_metric.values.tolist()
         num_tweets_of_profile = len(list_of_metric)
 
@@ -356,7 +357,7 @@ class InfluenceDetector:
         """
         return user_profile['followers_count']
 
-    def get_engagement(self, _dataframe, _profile):
+    def get_engagement(self, tweets, _profile):
         """
         This method calculates the influencer engagement using the form:
             engagement = [average_likes_in_posts_4_to_10] / followers
@@ -370,11 +371,14 @@ class InfluenceDetector:
         # if str(type(post_list)) != "<class 'pandas.core.frame.DataFrame'>":
         #    return -1
 
-        """sum_favs, num_tweets_of_profile_rt = self.get_sum_metrics(_dataframe['tweets']['tweets_data'], _profile,
-                                                                  'favourites_count')"""
+        # Tweets
+        df_tweets = pd.DataFrame.from_records(tweets)
 
-        sum_favs = random.randint(500, 200000)
-        num_tweets_of_profile_rt = _profile['statuses_count']
+        sum_favs, num_tweets_of_profile_rt = self.get_sum_metrics(df_tweets, 'favorite_count')
+
+        #sum_favs = random.randint(500, 200000)
+        #num_tweets_of_profile_rt = _profile['statuses_count']
+        #
 
         average_favs = sum_favs / num_tweets_of_profile_rt
         self._logger.debug("Average Likes: " + str(average_favs))
@@ -394,7 +398,7 @@ class InfluenceDetector:
         return engagement
 
 
-    def get_score(self, twitter_hdlr, users_df, user_profile):
+    def get_score(self, twitter_hdlr, users_df, user_profile, tweets):
         """
         This method receives as argument the dataframe corresponding to a profile
         and calculates different metrics to assign it a score.
@@ -431,12 +435,12 @@ class InfluenceDetector:
         rss_score, role = self.has_other_social_network(user_profile)
 
         # 4. (35 %) Engagement in terms of interaction with the public
-        engagement = self.get_engagement(users_df, user_profile)
+        engagement = self.get_engagement(tweets, user_profile)
 
         # Calculate final score
         score = BOT_WEIGHT * bot_percentage + VERIFIED_WEIGHT * is_verified + RRSS_WEIGHT * rss_score + ENGAGEMENT_WEIGHT * engagement
         influencer = {
-            'score': score,
+            'score': round(score,1),
             'id': user_profile['id'],
             'verified': is_verified,
             'engagement': engagement,
@@ -454,21 +458,19 @@ class InfluenceDetector:
         # Add more suffixes if you need them
         return '%.2f%s' % (num, ['', 'K', 'M', 'G', 'T', 'P'][magnitude])
 
-    def get_feedback(self, users_df):
+    def get_feedback(self, tweets):
 
-        return [] ################################ REMOVE
-        """
-        # VARIABLES
         count_rts = 0
         count_favs = 0
         result_list = []
 
-        df_tweets = users_df['tweets']['tweets_data']
+        # Parse from list of dict to dataframe
+        df_tweets = pd.DataFrame.from_records(tweets)
 
         # Sort the rows by date
-        df_tweets.sort_values(by='created_at')
-        df_tweets['created_at'] = pd.to_datetime(df_tweets['created_at'])
-        dates = pd.to_datetime(df_tweets['created_at'], format='%Y%m%d')
+        df_tweets.sort_values(by='date')
+        df_tweets['date'] = pd.to_datetime(df_tweets['date'])
+        dates = pd.to_datetime(df_tweets['date'], format='%Y%m%d')
         new_dates = dates.apply(lambda x: x.strftime('%Y-%m-%d'))
         dates_list = new_dates.tolist()
 
@@ -480,8 +482,8 @@ class InfluenceDetector:
         # We get a subdataframe with only the data in column 'Text'
         for date_item in dates_list:
 
-            list_of_favs_in_date = df_tweets.loc[(df_tweets['created_at'].astype(str).str.contains(date_item)), 'favourites_count']
-            list_of_rts_in_date = df_tweets.loc[(df_tweets['created_at'].astype(str).str.contains(date_item)), 'Num_RTs']
+            list_of_favs_in_date = df_tweets.loc[(df_tweets['date'].astype(str).str.contains(date_item)), 'favorite_count']
+            list_of_rts_in_date = df_tweets.loc[(df_tweets['date'].astype(str).str.contains(date_item)), 'retweet_count']
 
             # Calculates all the favorites from the tweets published in the date given in 'date_item'
             if len(list_of_favs_in_date) > 0:
@@ -509,17 +511,20 @@ class InfluenceDetector:
                 interaction_perc = 100
 
             # Encapsulate
-            result_list.append(self.encapsulate_data(date=d,
-                                                     rts=count_rts,
-                                                     favs=count_favs,
-                                                     interaction=interaction_perc))
+            result_list.append({"date":d,
+                                "rts":count_rts,
+                                "favs":count_favs,
+                                "interaction":interaction_perc})
 
             # Reset these values again as the value is appended in every iteration (+=)
             count_rts = 0
             count_favs = 0
 
+        # Sort list
+        result_list.sort(key=lambda item:item['date'], reverse=True)
+        
         # Return the result serialized
-        return self.serialize(result_list)"""
+        return result_list
 
     def detect(self, twitter_hdlr, users_df, num_influencers: int = config.DEFAULT_NUM_TOP_INFLUENCERS):
 
@@ -528,8 +533,14 @@ class InfluenceDetector:
         self._logger.debug("Going to iter and detect influencers")
         for index, row in users_df.iterrows():
 
+            # Extracts tweets from potential influencer timeline
+            self._logger.debug(f"Extracting timeline tweets of user '{row['name']}'")
+            list_timeline_user_tweets = []
+            list_timeline_user_tweets = twitter_hdlr.get_user_timeline_tweets_single_query(user_id=row['id'])
+            self._logger.debug(f"The list of tweets retrieved in timeline for user '{row['name']}' is {len(list_timeline_user_tweets)}")
+
             # Get score
-            influencer = self.get_score(twitter_hdlr, users_df, row)
+            influencer = self.get_score(twitter_hdlr=twitter_hdlr, users_df=users_df, user_profile=row, tweets=list_timeline_user_tweets)
             self._logger.debug("Profile: {0}, Score: {1}".format(row['id'], influencer))
             self._logger.debug("------------------------------")
 
@@ -541,10 +552,11 @@ class InfluenceDetector:
                                                       followers = row['followers_count'],
                                                       influence = influencer['score'],
                                                       formatted_followers = self.human_format(row['followers_count']),
-                                                      profile_img = row['profile_image_url'],
-                                                      feedback=self.get_feedback(row),
+                                                      profile_img = row['profile_image_url'].replace('_normal', ''),
+                                                      feedback=self.get_feedback(list_timeline_user_tweets),
                                                       profile_url = twitter_url,
                                                       level_bots = influencer['level_bots'],
+                                                      timeline_tweets = list_timeline_user_tweets,
                                                       role = influencer['role']))  #row['Profile_URL']
 
         # Sort the list of influencers detected from the highest influence value to the lowest (in descendent order)

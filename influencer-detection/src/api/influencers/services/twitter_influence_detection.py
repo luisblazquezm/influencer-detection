@@ -72,6 +72,8 @@ class TwitterExtractionForInfluenceDetection:
         """
         final_results = []
 
+        self._logger.debug(f"This is the '{query}'")
+
         if "," in query:
             query = self.parse_query(query=query, include_both=include_both)
 
@@ -107,23 +109,14 @@ class TwitterExtractionForInfluenceDetection:
         #### 4. Get timeline tweets from user profile and sentiment analysis on text
         sentiment_hdlr = SentimentAnalyzer()
         influencer = {}
-        list_timeline_user_tweets = sentiment_results = []
+        sentiment_results = []
         for user in influencers_data:
             influencer = user
             sentiment_results = []
 
-            # Extracts tweets from potential influencer timeline
-            self._logger.debug(f"Extracting timeline tweets of user '{influencer['name']}'")
-            list_timeline_user_tweets = twitter_hdlr.get_user_timeline_tweets_single_query(user_id =influencer['id'], 
-                                                                                           lang=lang,
-                                                                                           start_date = from_date,
-                                                                                           end_date = to_date)
-
-            self._logger.debug(f"The list of tweets retrieved in timeline for user '{influencer['name']}' is {len(list_timeline_user_tweets)}")
-
             # Analyze timeline tweets sentiment
             self._logger.debug(f"Analyzing sentiment from timeline tweets of user '{influencer['name']}'")
-            sentiment_results = list(map(lambda tweet:sentiment_hdlr.analyze(tweet['text']), list_timeline_user_tweets))
+            sentiment_results = list(map(lambda tweet:sentiment_hdlr.analyze(tweet['text']), influencer['timeline_tweets']))
             sentiment_values = [sentiment['sentiment'] for sentiment in sentiment_results]
 
             # Get average of sentiment in tweets

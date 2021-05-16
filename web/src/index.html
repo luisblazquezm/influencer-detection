@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8">
+  <title>Influencer Detection</title>
+
+  <!-- CSS for SearchBarr -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet"/>
+
+  <link rel="stylesheet" href="assets/css/style.css">
+
+  <!-- JavaScript source files -->
+  <!--<script type="text/javascript" src="assets/js/main.js"></script>-->
+
+  <script src="../assets/js/jquery-3.3.1.slim.min.js" rel="stylesheet"></script>
+
+</head>
+<body>
+
+	<div id="spinner-app" class="container-fluid">
+	  <div class="row justify-content-center">
+	    <div class="spinner-border" role="status">
+	         <span class="sr-only">Loading...</span>
+	    </div>
+	  </div>
+	  <div class="row justify-content-center">
+	    <strong>Collecting data</strong>
+	  </div>
+	</div>
+
+	<div id="all">
+
+		<!-- Logo Icon -->
+		<img id="logo" src="assets/img/website-icon.jpg" >
+
+		<div class="container">
+		  <!-- Title -->
+		  <div class="title-container">
+			<h1 id="title">Influencer Detector</h1>
+			<h2 id="subtitle">Press the icon and give it a try!</h2>
+		  </div>
+
+		  <!-- Search barr -->
+		  <form id="searchForm" action="/search" class="search-form" method="post">
+		  	<input name="query" type="text" placeholder="Search...">
+		  	<div class="search"></div>
+		  </form>
+		</div>
+
+	</div>
+
+	<script type="text/javascript">
+	$(document).ready(function() {
+
+		setNormalSpinner();
+
+		function setSpinnerLoading() {
+	        document.getElementById("spinner-app").style.display = 'block';
+	        $("#all").css('pointer-events', 'none');
+	        $("#all").css('opacity', '0.5');
+	    }
+
+	    function setNormalSpinner() {
+	        document.getElementById("spinner-app").style.display = 'none';
+	        $("#all").css('pointer-events', '');
+	        $("#all").css('opacity', '1');
+	    }
+
+		document.querySelector("#searchForm").addEventListener("submit", function(e){
+	        setSpinnerLoading();
+	    });
+
+	    
+    });
+	
+	</script>
+
+</body>
+</html>
