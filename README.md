@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="/blob/master/doc/resources/img/website-icon.jpg" hspace="20">
+  <img src="../blob/main/doc/resources/img/website-icon.jpg" hspace="20">
 </p>
 
 <h2 align="center">Influencer Detector on Twitter</h2>
 
-![header image](../blob/master/doc/resources/img/demo.gif)
+![header image](../blob/main/doc/resources/img/demo.gif)
 
 
 ##  📲 Introduction
