@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://github.com/luisblazquezm/influencer-detection/blob/main/doc/resources/img/website-icon.jpg?raw=true" hspace="20">
-</p>
-
 <h2 align="center">Influencer Detector on Twitter</h2>
 
 <p align="center">
