@@ -4,8 +4,9 @@
 
 <h2 align="center">Influencer Detector on Twitter</h2>
 
-![Image](https://github.com/luisblazquezm/influencer-detection/blob/main/doc/resources/img/demo.gif?raw=true)
-
+<p align="center">
+  <img src="https://github.com/luisblazquezm/influencer-detection/blob/main/doc/resources/img/demo.gif?raw=true?raw=true" hspace="20">
+</p>
 
 ##  📲 Introduction
 
