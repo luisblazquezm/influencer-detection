@@ -4,7 +4,7 @@
 
 <h2 align="center">Influencer Detector on Twitter</h2>
 
-![header image](../blob/main/doc/resources/img/demo.gif?raw=true)
+![header image](https://github.com/luisblazquezm/influencer-detection/blob/main/doc/resources/img/demo.gif?raw=true)
 
 
 ##  📲 Introduction
