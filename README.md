@@ -26,7 +26,6 @@ Main appliance and tools to install:
 ```bash
 sudo apt update
 sudo apt install python3 python3-pip nodejs libpq-dev -y
-sudo npm install -g pm2
 ```
 
 Python API can be launched with the launch script in /influencer-detection/src/api:
