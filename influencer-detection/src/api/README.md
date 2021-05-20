@@ -1,16 +1,13 @@
 ## Example project flaskrestx API
 
 ### Install
-`python3 setup.py install`
+`python3 setup.py install` or `python3 -m pip install . --upgrade` or `launch.bash`
 
 ### Run
-simply type `soa`
+simply type `influencers`
 
 ### Documentation
-Visit `http://localhost:5000/soa/v1/`
+Visit `http://localhost:5000/influencers/v1`
 
 ## Authors
 - Luis Blazquez Miñambres (@luisblazquezm)
-- Miguel Cabezas Puerto (@MiguelCabezasPuerto)
-- Óscar Sánchez Juanes (@oscarsanchezj)
-- Francisco Pinto-Santos (@gandalfran)
