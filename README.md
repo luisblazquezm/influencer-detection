@@ -14,7 +14,7 @@ This is a project consisting on the extraction of tweets from users on Twitter w
 * ``doc`` : contains adittional files and content for web development (images, css, js, ...).
 * ``web`` : documentation built with **Sphinx** that details the structure of the code (classes, methods, functions, ...) in the [main_analysis](https://github.com/bisite/SocialBrandAnalysis/tree/master/src/metrics/main_analysis) folder
 
-## 💻 Installation
+## 🛠 Installation
 
 Main appliance and tools to install:
 ```bash
